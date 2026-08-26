@@ -182,8 +182,8 @@ input:focus-visible {
 }
 
 .button-small {
-    min-height: 30px;
-    padding: 5px 10px;
+    min-height: 29px;
+    padding: 4px 7px;
     font-size: 12px;
 }
 
@@ -267,7 +267,6 @@ input:focus-visible {
 
 .record-table {
     width: 100%;
-    min-width: 720px;
     table-layout: fixed;
     border-collapse: collapse;
     background: #ffffff;
@@ -276,7 +275,7 @@ input:focus-visible {
 
 .record-table th,
 .record-table td {
-    padding: 10px 12px;
+    padding: 9px 7px;
     border-bottom: 1px solid #e8ebef;
     text-align: left;
     vertical-align: middle;
@@ -300,37 +299,35 @@ input:focus-visible {
 }
 
 .checkbox-column {
-    width: 58px;
+    width: 44px;
     text-align: center !important;
 }
 
 .name-column {
-    width: 22%;
-    min-width: 145px;
+    width: 21%;
     overflow-wrap: anywhere;
 }
 
 .dob-column {
-    width: 92px;
+    width: 86px;
 }
 
 .age-column {
-    width: 54px;
+    width: 46px;
 }
 
 .family-column {
     width: 20%;
-    min-width: 135px;
     white-space: normal;
     overflow-wrap: anywhere;
 }
 
 .status-column {
-    width: 138px;
+    width: 124px;
 }
 
 .action-column {
-    width: 92px;
+    width: 82px;
     text-align: right !important;
 }
 
@@ -351,9 +348,9 @@ input:focus-visible {
     display: inline-flex;
     align-items: center;
     min-height: 24px;
-    padding: 3px 8px;
+    padding: 3px 6px;
     border-radius: 999px;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     white-space: nowrap;
 }

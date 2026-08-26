@@ -51,8 +51,21 @@ if(searchValue == "")
 }
 else
 {
-	searchCriteria = "(Name:contains:" + searchValue + ")";
-	records = zoho.crm.searchRecords(moduleApiName,searchCriteria,pageNumber,50);
+	searchValueLower = searchValue.toLowerCase();
+	searchSourceRecords = zoho.crm.getRecords(moduleApiName,1,200);
+	if(searchSourceRecords.size() == 200)
+	{
+		searchSourceRecordsPage2 = zoho.crm.getRecords(moduleApiName,2,200);
+		searchSourceRecords.addAll(searchSourceRecordsPage2);
+	}
+	for each  searchRecord in searchSourceRecords
+	{
+		searchRecordName = ifnull(searchRecord.get("Name"),"").toString().toLowerCase();
+		if(searchRecordName.contains(searchValueLower))
+		{
+			records.add(searchRecord);
+		}
+	}
 }
 registrationCriteria = "(Event:equals:" + eventIdText + ")";
 existingRegistrations = zoho.crm.searchRecords("Event_Registrations",registrationCriteria,1,200);
