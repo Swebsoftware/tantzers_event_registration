@@ -16,6 +16,8 @@
         moreRecords: false,
         loading: false,
         saving: false,
+        removing: false,
+        removingRegistrationId: "",
         started: false,
         requestNumber: 0,
         selected: new Map(),
@@ -271,6 +273,7 @@
         var normalized = Object.assign({}, record);
         normalized.id = String(record.id || "");
         normalized.Name = String(record.Name || "");
+        normalized.registrationId = String(record.registrationId || "");
         normalized.alreadyRegistered = record.alreadyRegistered === true;
 
         if (normalized.alreadyRegistered) {
@@ -281,7 +284,7 @@
     }
 
     async function loadPage(preserveNotice) {
-        if (!state.eventId || state.saving) {
+        if (!state.eventId || state.saving || state.removing) {
             return;
         }
 
@@ -342,6 +345,7 @@
     function changeTab(tabName) {
         if (
             state.saving ||
+            state.removing ||
             tabName === state.activeTab ||
             ["families", "patients", "volunteers"].indexOf(tabName) === -1
         ) {
@@ -358,7 +362,7 @@
     }
 
     function applySearch() {
-        if (state.saving || !state.eventId) {
+        if (state.saving || state.removing || !state.eventId) {
             return;
         }
 
@@ -370,7 +374,7 @@
     }
 
     function clearSearch() {
-        if (state.saving || !state.eventId) {
+        if (state.saving || state.removing || !state.eventId) {
             return;
         }
 
@@ -389,7 +393,7 @@
     }
 
     function previousPage() {
-        if (state.loading || state.saving || state.page <= 1) {
+        if (state.loading || state.saving || state.removing || state.page <= 1) {
             return;
         }
         state.page -= 1;
@@ -397,7 +401,7 @@
     }
 
     function nextPage() {
-        if (state.loading || state.saving || !state.moreRecords) {
+        if (state.loading || state.saving || state.removing || !state.moreRecords) {
             return;
         }
         state.page += 1;
@@ -426,7 +430,7 @@
     }
 
     function selectCurrentPage() {
-        if (state.loading || state.saving) {
+        if (state.loading || state.saving || state.removing) {
             return;
         }
 
@@ -445,7 +449,7 @@
     }
 
     function clearSelection() {
-        if (state.saving) {
+        if (state.saving || state.removing) {
             return;
         }
         state.selected.clear();
@@ -471,6 +475,8 @@
             cell.textContent = label;
             if (index === 0) {
                 cell.className = "checkbox-column";
+            } else if (label === "Action") {
+                cell.className = "action-column";
             }
             row.appendChild(cell);
         });
@@ -485,6 +491,33 @@
             : "badge badge-available";
         badge.textContent = alreadyRegistered ? "Already Registered" : "Available";
         cell.appendChild(badge);
+        row.appendChild(cell);
+    }
+
+    function appendActionCell(row, record) {
+        var cell = document.createElement("td");
+        cell.className = "action-column";
+
+        if (record.alreadyRegistered && record.registrationId) {
+            var removeButton = document.createElement("button");
+            var isRemovingThisRecord =
+                state.removing &&
+                state.removingRegistrationId === record.registrationId;
+
+            removeButton.type = "button";
+            removeButton.className = "button button-danger button-small";
+            removeButton.textContent = isRemovingThisRecord ? "Removing…" : "Remove";
+            removeButton.disabled = state.loading || state.saving || state.removing;
+            removeButton.setAttribute(
+                "aria-label",
+                "Remove " + (record.Name || "record") + " from this event"
+            );
+            removeButton.addEventListener("click", function () {
+                removeRegistration(record);
+            });
+            cell.appendChild(removeButton);
+        }
+
         row.appendChild(cell);
     }
 
@@ -525,6 +558,7 @@
         }
 
         appendStatusCell(row, record.alreadyRegistered);
+        appendActionCell(row, record);
         elements.tableBody.appendChild(row);
     }
 
@@ -533,18 +567,21 @@
         elements.tableBody.textContent = "";
 
         if (state.activeTab === "families") {
-            appendHeader(["Add", "Family Name", "Email", "Primary Phone", "Status"]);
+            appendHeader(["Add", "Family Name", "Email", "Primary Phone", "Status", "Action"]);
         } else if (state.activeTab === "patients") {
-            appendHeader(["Add", "Patient Name", "Date of Birth", "Age", "Family", "Status"]);
+            appendHeader(["Add", "Patient Name", "Date of Birth", "Age", "Family", "Status", "Action"]);
         } else {
-            appendHeader(["Add", "Volunteer Name", "Status"]);
+            appendHeader(["Add", "Volunteer Name", "Status", "Action"]);
         }
 
         state.records.forEach(appendRecordRow);
     }
 
     function render(loadError) {
-        elements.app.setAttribute("aria-busy", state.loading || state.saving ? "true" : "false");
+        elements.app.setAttribute(
+            "aria-busy",
+            state.loading || state.saving || state.removing ? "true" : "false"
+        );
         elements.eventName.textContent = state.eventId ? state.eventName : "Connecting to Zoho CRM…";
 
         elements.tabButtons.forEach(function (button) {
@@ -598,7 +635,7 @@
     }
 
     function updateControls() {
-        var busy = state.loading || state.saving;
+        var busy = state.loading || state.saving || state.removing;
         var selectedCount = state.selected.size;
         var availableCount = state.records.filter(function (record) {
             return !record.alreadyRegistered;
@@ -610,20 +647,22 @@
 
         elements.selectionSummary.textContent = selectedCount + " selected";
         elements.selectPageButton.disabled = busy || availableCount === 0;
-        elements.clearSelectionButton.disabled = state.saving || selectedCount === 0;
-        elements.searchInput.disabled = state.saving || !state.eventId;
-        elements.searchButton.disabled = state.saving || !state.eventId;
-        elements.clearSearchButton.disabled = state.saving || !state.eventId;
+        elements.clearSelectionButton.disabled =
+            state.saving || state.removing || selectedCount === 0;
+        elements.searchInput.disabled = state.saving || state.removing || !state.eventId;
+        elements.searchButton.disabled = state.saving || state.removing || !state.eventId;
+        elements.clearSearchButton.disabled =
+            state.saving || state.removing || !state.eventId;
         elements.previousButton.disabled = busy || state.page <= 1;
         elements.nextButton.disabled = busy || !state.moreRecords;
         elements.saveButton.disabled = busy || selectedCount === 0 || !state.eventId;
-        elements.doneButton.disabled = state.saving;
+        elements.doneButton.disabled = state.saving || state.removing;
         elements.saveButton.textContent = state.saving
             ? "Adding Registrations…"
             : "Add Selected to Event";
 
         elements.tabButtons.forEach(function (button) {
-            button.disabled = state.saving || !state.eventId;
+            button.disabled = state.saving || state.removing || !state.eventId;
         });
     }
 
@@ -674,8 +713,70 @@
         );
     }
 
+    async function removeRegistration(record) {
+        if (
+            state.loading ||
+            state.saving ||
+            state.removing ||
+            !record.alreadyRegistered ||
+            !record.registrationId
+        ) {
+            return;
+        }
+
+        var confirmed = window.confirm(
+            "Remove \"" + record.Name + "\" from \"" + state.eventName + "\"?\n\n" +
+            "This deletes only the Event Registration record."
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        state.removing = true;
+        state.removingRegistrationId = record.registrationId;
+        clearNotice();
+        renderTable();
+        updateControls();
+
+        try {
+            var response = await withTimeout(
+                ZOHO.CRM.API.deleteRecord({
+                    Entity: REGISTRATION_MODULE,
+                    RecordID: record.registrationId
+                }),
+                REQUEST_TIMEOUT_MS,
+                "Zoho took longer than 20 seconds while removing the registration."
+            );
+
+            var results = responseResults(response);
+
+            if (!isSuccessfulResult(results[0])) {
+                var resultMessage =
+                    results[0] && (results[0].message || results[0].code);
+                throw new Error(resultMessage || "Zoho did not delete the registration.");
+            }
+
+            state.cache.clear();
+            showNotice(record.Name + " was removed from the event.", "success");
+        } catch (error) {
+            console.error("Event Registration remove error:", error);
+            showNotice("Unable to remove registration: " + errorMessage(error), "error");
+        }
+
+        state.removing = false;
+        state.removingRegistrationId = "";
+        updateControls();
+        loadPage(true);
+    }
+
     async function saveRegistrations() {
-        if (state.saving || state.loading || state.selected.size === 0) {
+        if (
+            state.saving ||
+            state.removing ||
+            state.loading ||
+            state.selected.size === 0
+        ) {
             return;
         }
 
@@ -758,7 +859,7 @@
     }
 
     function closeWidget() {
-        if (state.saving) {
+        if (state.saving || state.removing) {
             return;
         }
 

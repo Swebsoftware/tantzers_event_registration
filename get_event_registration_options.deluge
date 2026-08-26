@@ -1,0 +1,128 @@
+string standalone.get_event_registration_options(String module_type,String page_number,String search_text,String event_id)
+{
+response = Map();
+outputRecords = List();
+registrationIdsBySource = Map();
+moduleType = ifnull(module_type,"").trim().toLowerCase();
+searchValue = ifnull(search_text,"").trim();
+eventIdText = ifnull(event_id,"").trim();
+pageText = ifnull(page_number,"1").trim();
+if(eventIdText == "")
+{
+	response.put("success",false);
+	response.put("message","Event ID is required.");
+	return response.toString();
+}
+pageNumber = pageText.toLong();
+if(pageNumber < 1)
+{
+	pageNumber = 1;
+}
+moduleApiName = "";
+if(moduleType == "families")
+{
+	moduleApiName = "Families";
+}
+if(moduleType == "patients")
+{
+	moduleApiName = "Patientt";
+}
+if(moduleType == "volunteers")
+{
+	moduleApiName = "Volunteers";
+}
+if(moduleApiName == "")
+{
+	response.put("success",false);
+	response.put("message","Invalid module type.");
+	return response.toString();
+}
+eventRecord = zoho.crm.getRecordById("Party_Events",eventIdText.toLong());
+if(eventRecord == null || eventRecord.get("id") == null)
+{
+	response.put("success",false);
+	response.put("message","Event record was not found.");
+	return response.toString();
+}
+records = List();
+if(searchValue == "")
+{
+	records = zoho.crm.getRecords(moduleApiName,pageNumber,50);
+}
+else
+{
+	searchCriteria = "(Name:starts_with:" + searchValue + ")";
+	records = zoho.crm.searchRecords(moduleApiName,searchCriteria,pageNumber,50);
+}
+registrationCriteria = "(Event:equals:" + eventIdText + ")";
+existingRegistrations = zoho.crm.searchRecords("Event_Registrations",registrationCriteria,1,200);
+for each  registration in existingRegistrations
+{
+	registrationRecordId = registration.get("id").toString();
+	if(moduleType == "patients")
+	{
+		patientLookup = registration.get("Patient");
+		if(patientLookup != null && patientLookup.get("id") != null)
+		{
+			registrationIdsBySource.put(patientLookup.get("id").toString(),registrationRecordId);
+		}
+	}
+	if(moduleType == "volunteers")
+	{
+		volunteerLookup = registration.get("Volunteer");
+		if(volunteerLookup != null && volunteerLookup.get("id") != null)
+		{
+			registrationIdsBySource.put(volunteerLookup.get("id").toString(),registrationRecordId);
+		}
+	}
+	if(moduleType == "families")
+	{
+		familyLookup = registration.get("Family");
+		patientLookup = registration.get("Patient");
+		volunteerLookup = registration.get("Volunteer");
+		if(familyLookup != null && familyLookup.get("id") != null && patientLookup == null && volunteerLookup == null)
+		{
+			registrationIdsBySource.put(familyLookup.get("id").toString(),registrationRecordId);
+		}
+	}
+}
+for each  crmRecord in records
+{
+	recordMap = Map();
+	recordId = crmRecord.get("id").toString();
+	registrationId = ifnull(registrationIdsBySource.get(recordId),"");
+	recordMap.put("id",recordId);
+	recordMap.put("Name",ifnull(crmRecord.get("Name"),""));
+	recordMap.put("alreadyRegistered",registrationId != "");
+	recordMap.put("registrationId",registrationId);
+	if(moduleType == "families")
+	{
+		recordMap.put("Email",ifnull(crmRecord.get("Email"),""));
+		recordMap.put("Primary_Phone",ifnull(crmRecord.get("Primary_Phone"),""));
+	}
+	if(moduleType == "patients")
+	{
+		recordMap.put("Date_of_Birth",ifnull(crmRecord.get("Date_of_Birth"),""));
+		recordMap.put("Age",ifnull(crmRecord.get("Age"),""));
+		familyName = "";
+		familyId = "";
+		familyLookup = crmRecord.get("Family");
+		if(familyLookup != null)
+		{
+			familyName = ifnull(familyLookup.get("name"),"");
+			familyId = ifnull(familyLookup.get("id"),"");
+		}
+		recordMap.put("familyName",familyName);
+		recordMap.put("familyId",familyId);
+	}
+	outputRecords.add(recordMap);
+}
+response.put("success",true);
+response.put("event_name",ifnull(eventRecord.get("Name"),"Event"));
+response.put("module_type",moduleType);
+response.put("page",pageNumber);
+response.put("records",outputRecords);
+response.put("record_count",outputRecords.size());
+response.put("more_records",outputRecords.size() == 50);
+return response.toString();
+}

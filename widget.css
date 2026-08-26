@@ -162,6 +162,22 @@ input:focus-visible {
     background: #f6f8fb;
 }
 
+.button-danger {
+    border: 1px solid #d92d20;
+    background: #ffffff;
+    color: #b42318;
+}
+
+.button-danger:hover:not(:disabled) {
+    background: #fff1f0;
+}
+
+.button-small {
+    min-height: 30px;
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
 .button:disabled {
     cursor: not-allowed;
     opacity: 0.52;
@@ -272,6 +288,11 @@ input:focus-visible {
 .checkbox-column {
     width: 58px;
     text-align: center !important;
+}
+
+.action-column {
+    width: 100px;
+    text-align: right !important;
 }
 
 .checkbox-column input {
