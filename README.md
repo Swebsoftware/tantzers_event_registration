@@ -17,6 +17,8 @@ GitHub Pages publishes the repository's `main` branch from `/(root)`. The live w
 
 Zoho CRM registers that URL as an externally hosted Button widget.
 
+Deployment refreshed on August 26, 2026.
+
 ## Removal behavior
 
 The Deluge function returns the matching `Event_Registrations` record ID as `registrationId`. Registered rows display a **Remove** button. After confirmation, the widget deletes only that Event Registration record; it never deletes the source Family, Patient/Sibling, Volunteer, or Party Event.
