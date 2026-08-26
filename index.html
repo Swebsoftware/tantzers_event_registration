@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Event Registration Manager</title>
+    <link rel="stylesheet" href="widget.css">
+    <script defer src="https://live.zwidgets.com/js-sdk/1.2/ZohoEmbededAppSDK.min.js"></script>
+    <script defer src="widget.js"></script>
+</head>
+<body>
+    <main class="app-shell" id="app" aria-busy="true">
+        <header class="app-header">
+            <div class="title-block">
+                <h1>Add Event Registrations</h1>
+                <p id="event-name">Connecting to Zoho CRM…</p>
+            </div>
+
+            <div class="header-actions">
+                <button id="select-page-button" class="button button-secondary" type="button">
+                    Select Page
+                </button>
+                <button id="clear-selection-button" class="button button-secondary" type="button">
+                    Clear Selection
+                </button>
+            </div>
+        </header>
+
+        <nav class="tabs" aria-label="Registration type" role="tablist">
+            <button class="tab-button" type="button" role="tab" data-tab="families">
+                Families
+            </button>
+            <button class="tab-button active" type="button" role="tab" data-tab="patients">
+                Patients / Siblings
+            </button>
+            <button class="tab-button" type="button" role="tab" data-tab="volunteers">
+                Volunteers
+            </button>
+        </nav>
+
+        <form id="search-form" class="search-toolbar" role="search">
+            <label class="sr-only" for="search-input">Search records</label>
+            <input
+                id="search-input"
+                name="search"
+                type="search"
+                autocomplete="off"
+                placeholder="Search patients / siblings by name…"
+            >
+            <button id="search-button" class="button button-primary" type="submit">
+                Search
+            </button>
+            <button id="clear-search-button" class="button button-secondary" type="button">
+                Clear
+            </button>
+        </form>
+
+        <div class="summary-row">
+            <span id="result-summary">Waiting for the Event record…</span>
+            <span id="selection-summary">0 selected</span>
+        </div>
+
+        <section class="results-panel" aria-live="polite">
+            <div id="loading-state" class="state-message">
+                <span class="spinner" aria-hidden="true"></span>
+                <span id="loading-text">Connecting to Zoho CRM…</span>
+            </div>
+
+            <div id="error-state" class="state-message state-error" hidden>
+                <p id="error-message">Unable to load records.</p>
+                <button id="retry-button" class="button button-secondary" type="button">
+                    Try Again
+                </button>
+            </div>
+
+            <div id="empty-state" class="state-message" hidden>
+                <p id="empty-message">No records found.</p>
+            </div>
+
+            <div id="table-container" class="table-container" hidden>
+                <table class="record-table">
+                    <thead id="table-head"></thead>
+                    <tbody id="table-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="pagination-row">
+            <span id="page-label">Page 1</span>
+            <div class="pagination-actions">
+                <button id="previous-button" class="button button-secondary" type="button">
+                    Previous
+                </button>
+                <button id="next-button" class="button button-secondary" type="button">
+                    Next
+                </button>
+            </div>
+        </div>
+
+        <footer class="app-footer">
+            <div id="notice" class="notice" role="status" aria-live="polite"></div>
+            <div class="footer-actions">
+                <button id="done-button" class="button button-secondary" type="button">
+                    Done
+                </button>
+                <button id="save-button" class="button button-primary" type="button" disabled>
+                    Add Selected to Event
+                </button>
+            </div>
+        </footer>
+    </main>
+</body>
+</html>
