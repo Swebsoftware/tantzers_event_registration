@@ -1,4 +1,4 @@
-void schedule.get_event_registration_options(string module_type, string page_number, string search_text, string event_id)
+string standalone.get_event_registration_options(string module_type, string page_number, string search_text, string event_id)
 {
     response = Map();
     outputRecords = List();
@@ -249,5 +249,5 @@ void schedule.get_event_registration_options(string module_type, string page_num
         response.put("more_records",outputRecords.size() == 50);
     }
 
-    info response.toString();
+    return response.toString();
 }
