@@ -37,8 +37,6 @@
         elements.clearSelectionButton = byId("clear-selection-button");
         elements.searchForm = byId("search-form");
         elements.searchInput = byId("search-input");
-        elements.searchButton = byId("search-button");
-        elements.clearSearchButton = byId("clear-search-button");
         elements.resultSummary = byId("result-summary");
         elements.selectionSummary = byId("selection-summary");
         elements.loadingState = byId("loading-state");
@@ -74,7 +72,11 @@
             applySearch();
         });
 
-        elements.clearSearchButton.addEventListener("click", clearSearch);
+        elements.searchInput.addEventListener("search", function () {
+            if (String(elements.searchInput.value || "").trim() === "") {
+                clearSearch();
+            }
+        });
         elements.selectPageButton.addEventListener("click", selectCurrentPage);
         elements.clearSelectionButton.addEventListener("click", clearSelection);
         elements.retryButton.addEventListener("click", function () {
@@ -478,6 +480,22 @@
             } else if (label === "Action") {
                 cell.className = "action-column";
             }
+
+            if (
+                label === "Patient Name" ||
+                label === "Volunteer Name" ||
+                label === "Family Name"
+            ) {
+                cell.classList.add("name-column");
+            } else if (label === "DOB") {
+                cell.classList.add("dob-column");
+            } else if (label === "Age") {
+                cell.classList.add("age-column");
+            } else if (label === "Family") {
+                cell.classList.add("family-column");
+            } else if (label === "Status") {
+                cell.classList.add("status-column");
+            }
             row.appendChild(cell);
         });
         elements.tableHead.appendChild(row);
@@ -549,10 +567,14 @@
             createCell(row, record.Email || "");
             createCell(row, record.Primary_Phone || "");
         } else if (state.activeTab === "patients") {
-            createCell(row, record.Name);
-            createCell(row, record.Date_of_Birth || "");
-            createCell(row, record.Age === null || record.Age === undefined ? "" : record.Age);
-            createCell(row, record.familyName || "");
+            createCell(row, record.Name, "name-column");
+            createCell(row, record.Date_of_Birth || "", "dob-column");
+            createCell(
+                row,
+                record.Age === null || record.Age === undefined ? "" : record.Age,
+                "age-column"
+            );
+            createCell(row, record.familyName || "", "family-column");
         } else {
             createCell(row, record.Name);
         }
@@ -569,7 +591,7 @@
         if (state.activeTab === "families") {
             appendHeader(["Add", "Family Name", "Email", "Primary Phone", "Status", "Action"]);
         } else if (state.activeTab === "patients") {
-            appendHeader(["Add", "Patient Name", "Date of Birth", "Age", "Family", "Status", "Action"]);
+            appendHeader(["Add", "Patient Name", "DOB", "Age", "Family", "Status", "Action"]);
         } else {
             appendHeader(["Add", "Volunteer Name", "Status", "Action"]);
         }
@@ -650,9 +672,6 @@
         elements.clearSelectionButton.disabled =
             state.saving || state.removing || selectedCount === 0;
         elements.searchInput.disabled = state.saving || state.removing || !state.eventId;
-        elements.searchButton.disabled = state.saving || state.removing || !state.eventId;
-        elements.clearSearchButton.disabled =
-            state.saving || state.removing || !state.eventId;
         elements.previousButton.disabled = busy || state.page <= 1;
         elements.nextButton.disabled = busy || !state.moreRecords;
         elements.saveButton.disabled = busy || selectedCount === 0 || !state.eventId;
