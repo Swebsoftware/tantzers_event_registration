@@ -51,7 +51,7 @@ if(searchValue == "")
 }
 else
 {
-	searchCriteria = "(Name:starts_with:" + searchValue + ")";
+	searchCriteria = "(Name:contains:" + searchValue + ")";
 	records = zoho.crm.searchRecords(moduleApiName,searchCriteria,pageNumber,50);
 }
 registrationCriteria = "(Event:equals:" + eventIdText + ")";
