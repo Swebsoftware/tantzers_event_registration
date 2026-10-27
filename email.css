@@ -13,7 +13,7 @@ body {
     background: #f6f8fb;
 }
 
-button, input, textarea { font: inherit; }
+button, input, textarea, select { font: inherit; }
 
 .email-shell {
     width: min(760px, 100%);
@@ -73,6 +73,7 @@ h1 {
 }
 
 .field-group + .field-group { margin-top: 16px; }
+#custom-fields { margin-top: 16px; }
 
 label {
     display: block;
@@ -81,7 +82,7 @@ label {
     font-weight: 650;
 }
 
-input, textarea {
+input, textarea, select {
     width: 100%;
     border: 1px solid #d1d5db;
     border-radius: 8px;
@@ -91,7 +92,7 @@ input, textarea {
     outline: none;
 }
 
-input:focus, textarea:focus {
+input:focus, textarea:focus, select:focus {
     border-color: #2563eb;
     box-shadow: 0 0 0 3px rgba(37,99,235,.10);
 }
@@ -99,6 +100,13 @@ input:focus, textarea:focus {
 textarea {
     resize: vertical;
     min-height: 190px;
+}
+
+.helper-text {
+    margin: 7px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #6b7280;
 }
 
 .recipient-details {
