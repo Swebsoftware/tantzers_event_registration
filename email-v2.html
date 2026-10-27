@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Email Event Attendees</title>
+    <link rel="stylesheet" href="email.css?v=4">
+    <script defer src="https://live.zwidgets.com/js-sdk/1.2/ZohoEmbededAppSDK.min.js"></script>
+    <script defer src="email.js?v=3"></script>
+</head>
+<body>
+    <main class="email-shell" id="app" aria-busy="true">
+        <header class="email-header">
+            <div>
+                <p class="eyebrow">Event Communication</p>
+                <h1 id="event-name">Loading event…</h1>
+                <p id="recipient-summary" class="recipient-summary">Checking registered attendees…</p>
+            </div>
+        </header>
+
+        <section id="loading-state" class="state-card">
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Loading registered attendee emails…</span>
+        </section>
+
+        <section id="error-state" class="state-card error-card" hidden>
+            <p id="error-message">Unable to load event attendees.</p>
+            <button id="retry-button" class="button button-secondary" type="button">Try Again</button>
+        </section>
+
+        <form id="email-form" class="compose-card" hidden>
+            <div class="field-group">
+                <label for="send-mode">Send Using</label>
+                <select id="send-mode">
+                    <option value="custom">Custom Message</option>
+                    <option value="template">CRM Email Template</option>
+                </select>
+            </div>
+
+            <div id="template-fields" class="field-group" hidden>
+                <label for="template-select">Email Template</label>
+                <select id="template-select"></select>
+                <p id="template-note" class="helper-text"></p>
+            </div>
+
+            <div id="custom-fields">
+                <div class="field-group">
+                    <label for="subject-input">Subject</label>
+                    <input id="subject-input" type="text" maxlength="1000" autocomplete="off" placeholder="Event update">
+                </div>
+
+                <div class="field-group">
+                    <label for="message-input">Message</label>
+                    <textarea id="message-input" rows="12" maxlength="100000" placeholder="Write your message…"></textarea>
+                </div>
+            </div>
+
+            <details class="recipient-details">
+                <summary>View recipient emails</summary>
+                <div id="recipient-list" class="recipient-list"></div>
+            </details>
+
+            <div id="notice" class="notice" role="status" aria-live="polite"></div>
+
+            <footer class="actions">
+                <button id="close-button" class="button button-secondary" type="button">Cancel</button>
+                <button id="send-button" class="button button-primary" type="submit">Send Email</button>
+            </footer>
+        </form>
+    </main>
+</body>
+</html>
