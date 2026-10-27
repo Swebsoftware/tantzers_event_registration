@@ -8,6 +8,7 @@
         eventId: "",
         eventName: "Event",
         recipients: [],
+        templates: [],
         recipientCount: 0,
         registrationCount: 0,
         missingEmailCount: 0,
@@ -32,6 +33,11 @@
         elements.errorMessage = byId("error-message");
         elements.retryButton = byId("retry-button");
         elements.form = byId("email-form");
+        elements.sendMode = byId("send-mode");
+        elements.templateFields = byId("template-fields");
+        elements.templateSelect = byId("template-select");
+        elements.templateNote = byId("template-note");
+        elements.customFields = byId("custom-fields");
         elements.subject = byId("subject-input");
         elements.message = byId("message-input");
         elements.recipientList = byId("recipient-list");
@@ -43,6 +49,8 @@
     function addEventListeners() {
         elements.retryButton.addEventListener("click", loadPreview);
         elements.closeButton.addEventListener("click", closeWidget);
+        elements.sendMode.addEventListener("change", updateComposerMode);
+        elements.templateSelect.addEventListener("change", updateTemplateNote);
         elements.form.addEventListener("submit", function (event) {
             event.preventDefault();
             sendEmail();
@@ -108,14 +116,15 @@
         return output;
     }
 
-    function callFunction(action, subject, message) {
+    function callFunction(action, subject, message, templateId) {
         return withTimeout(
             ZOHO.CRM.FUNCTIONS.execute(FUNCTION_NAME, {
                 arguments: JSON.stringify({
                     action: action,
                     event_id: state.eventId,
                     subject: subject || "",
-                    message: message || ""
+                    message: message || "",
+                    template_id: templateId || ""
                 })
             }),
             REQUEST_TIMEOUT_MS,
@@ -174,13 +183,14 @@
         render();
 
         try {
-            var data = await callFunction("preview", "", "");
+            var data = await callFunction("preview", "", "", "");
             if (data.success !== true) {
                 throw new Error(data.message || "Unable to load registered attendees.");
             }
 
             state.eventName = String(data.event_name || "Event");
             state.recipients = Array.isArray(data.recipients) ? data.recipients : [];
+            state.templates = Array.isArray(data.templates) ? data.templates : [];
             state.recipientCount = Number(data.recipient_count || 0);
             state.registrationCount = Number(data.registration_count || 0);
             state.missingEmailCount = Number(data.missing_email_count || 0);
@@ -190,7 +200,9 @@
                 elements.subject.value = "Event Update: " + state.eventName;
             }
 
+            populateTemplateOptions();
             render();
+            updateComposerMode();
         } catch (error) {
             console.error("Email attendee preview error:", error);
             state.loading = false;
@@ -198,28 +210,98 @@
         }
     }
 
+    function populateTemplateOptions() {
+        var previousValue = elements.templateSelect.value;
+        elements.templateSelect.innerHTML = "";
+
+        if (state.templates.length === 0) {
+            var emptyOption = document.createElement("option");
+            emptyOption.value = "";
+            emptyOption.textContent = "No Event Registration templates available";
+            elements.templateSelect.appendChild(emptyOption);
+            return;
+        }
+
+        var promptOption = document.createElement("option");
+        promptOption.value = "";
+        promptOption.textContent = "Select a template…";
+        elements.templateSelect.appendChild(promptOption);
+
+        state.templates.forEach(function (template) {
+            var option = document.createElement("option");
+            option.value = String(template.id || "");
+            option.textContent = String(template.name || "Template");
+            option.setAttribute("data-subject", String(template.subject || ""));
+            elements.templateSelect.appendChild(option);
+        });
+
+        if (previousValue) {
+            elements.templateSelect.value = previousValue;
+        }
+        updateTemplateNote();
+    }
+
+    function updateComposerMode() {
+        var useTemplate = elements.sendMode.value === "template";
+        elements.templateFields.hidden = !useTemplate;
+        elements.customFields.hidden = useTemplate;
+        elements.subject.disabled = useTemplate || state.sending || state.sent;
+        elements.message.disabled = useTemplate || state.sending || state.sent;
+        elements.templateSelect.disabled = !useTemplate || state.sending || state.sent || state.templates.length === 0;
+
+        if (useTemplate && state.templates.length === 0) {
+            setNotice("No CRM email templates are available for Event Registrations.", "error");
+        } else if (elements.notice.textContent === "No CRM email templates are available for Event Registrations.") {
+            setNotice("", "");
+        }
+
+        updateTemplateNote();
+    }
+
+    function updateTemplateNote() {
+        if (!elements.templateSelect || elements.templateSelect.selectedIndex < 0) {
+            return;
+        }
+        var option = elements.templateSelect.options[elements.templateSelect.selectedIndex];
+        var subject = option ? option.getAttribute("data-subject") : "";
+        elements.templateNote.textContent = subject ? "Template subject: " + subject : "";
+    }
+
     async function sendEmail() {
         if (state.sending || state.sent || state.recipientCount < 1) {
             return;
         }
 
+        var useTemplate = elements.sendMode.value === "template";
         var subject = String(elements.subject.value || "").trim();
         var message = String(elements.message.value || "").trim();
+        var templateId = useTemplate ? String(elements.templateSelect.value || "").trim() : "";
 
-        if (!subject) {
-            setNotice("Enter an email subject.", "error");
-            elements.subject.focus();
-            return;
-        }
-        if (!message) {
-            setNotice("Enter an email message.", "error");
-            elements.message.focus();
-            return;
+        if (useTemplate) {
+            if (!templateId) {
+                setNotice("Select a CRM email template.", "error");
+                elements.templateSelect.focus();
+                return;
+            }
+        } else {
+            if (!subject) {
+                setNotice("Enter an email subject.", "error");
+                elements.subject.focus();
+                return;
+            }
+            if (!message) {
+                setNotice("Enter an email message.", "error");
+                elements.message.focus();
+                return;
+            }
         }
 
+        var modeText = useTemplate
+            ? " using the selected CRM template"
+            : "";
         var confirmed = window.confirm(
             "Send this email to " + state.recipientCount + " unique registered attendee email" +
-            (state.recipientCount === 1 ? "" : "s") + "?"
+            (state.recipientCount === 1 ? "" : "s") + modeText + "?"
         );
         if (!confirmed) {
             return;
@@ -228,9 +310,10 @@
         state.sending = true;
         setNotice("Sending…", "");
         render();
+        updateComposerMode();
 
         try {
-            var data = await callFunction("send", subject, message);
+            var data = await callFunction("send", subject, message, templateId);
             var sentCount = Number(data.sent_count || 0);
             var failedCount = Number(data.failed_count || 0);
 
@@ -257,6 +340,7 @@
         } finally {
             state.sending = false;
             render();
+            updateComposerMode();
         }
     }
 
@@ -296,8 +380,10 @@
 
         renderRecipientList();
 
+        elements.sendMode.disabled = state.sending || state.sent;
         elements.subject.disabled = state.sending || state.sent;
         elements.message.disabled = state.sending || state.sent;
+        elements.templateSelect.disabled = state.sending || state.sent;
         elements.sendButton.disabled = state.sending || state.sent || state.recipientCount < 1;
         elements.sendButton.textContent = state.sending ? "Sending…" : (state.sent ? "Email Sent" : "Send Email");
     }
