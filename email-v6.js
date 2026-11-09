@@ -3,6 +3,7 @@
 
     var FUNCTION_NAME = "event_attendee_email";
     var REQUEST_TIMEOUT_MS = 30000;
+    var SEND_REQUEST_TIMEOUT_MS = 120000;
 
     var state = {
         eventId: "",
@@ -18,7 +19,8 @@
         loading: false,
         sending: false,
         started: false,
-        sent: false
+        sent: false,
+        sendOutcomeUnknown: false
     };
 
     var elements = {};
@@ -122,8 +124,10 @@
                     reply_to_email: replyToEmail || ""
                 })
             }),
-            REQUEST_TIMEOUT_MS,
-            "The CRM function took longer than expected. Please try again."
+            (action === "send" ? SEND_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS),
+            (action === "send"
+                ? "Sending is taking longer than the widget can wait."
+                : "The CRM function took longer than expected. Please try again.")
         ).then(parseFunctionResponse);
     }
 
@@ -344,11 +348,11 @@
         var useTemplate = elements.sendMode.value === "template";
         elements.templateFields.hidden = !useTemplate;
         elements.customFields.hidden = useTemplate;
-        elements.subject.disabled = useTemplate || state.sending || state.sent;
-        elements.message.disabled = useTemplate || state.sending || state.sent;
-        elements.templateSelect.disabled = !useTemplate || state.sending || state.sent || state.templates.length === 0;
-        elements.senderSelect.disabled = state.sending || state.sent;
-        elements.replyToSelect.disabled = state.sending || state.sent;
+        elements.subject.disabled = useTemplate || state.sending || state.sent || state.sendOutcomeUnknown;
+        elements.message.disabled = useTemplate || state.sending || state.sent || state.sendOutcomeUnknown;
+        elements.templateSelect.disabled = !useTemplate || state.sending || state.sent || state.sendOutcomeUnknown || state.templates.length === 0;
+        elements.senderSelect.disabled = state.sending || state.sent || state.sendOutcomeUnknown;
+        elements.replyToSelect.disabled = state.sending || state.sent || state.sendOutcomeUnknown;
         if (useTemplate && state.templates.length === 0) setNotice("No CRM email templates are available for Event Registrations.", "error");
         else if (elements.notice.textContent === "No CRM email templates are available for Event Registrations.") setNotice("", "");
         updateTemplateNote();
@@ -400,7 +404,7 @@
     }
 
     async function sendEmail() {
-        if (state.sending || state.sent || state.recipientCount < 1) return;
+        if (state.sending || state.sent || state.sendOutcomeUnknown || state.recipientCount < 1) return;
 
         var senderEmail = String(elements.senderSelect.value || "").trim();
         var replyToEmail = String(elements.replyToSelect.value || "").trim();
@@ -449,7 +453,16 @@
                 setNotice("Sent " + sentCount + ". Failed " + failedCount + (failed ? ": " + failed : "."), "error");
             }
         } catch (error) {
-            setNotice(errorMessage(error), "error");
+            // The function may have kept sending even if the widget stopped waiting.
+            // Never imply a safe retry or allow an immediate duplicate send.
+            state.sendOutcomeUnknown = true;
+            setNotice(
+                "Email processing status unknown. Your request may still be processing. " +
+                "Check the completion report sent to " + senderEmail +
+                " before sending again to avoid duplicate emails.",
+                "error"
+            );
+            console.warn("Email sending result not confirmed; no retry performed.", error);
         } finally {
             state.sending = false;
             render();
@@ -484,11 +497,11 @@
         elements.recipientSummary.textContent = summary;
         renderRecipientList();
 
-        elements.sendMode.disabled = state.sending || state.sent;
-        elements.senderSelect.disabled = state.sending || state.sent;
-        elements.replyToSelect.disabled = state.sending || state.sent;
-        elements.sendButton.disabled = state.sending || state.sent || state.recipientCount < 1;
-        elements.sendButton.textContent = state.sending ? "Sending…" : (state.sent ? "Email Sent" : "Send Email");
+        elements.sendMode.disabled = state.sending || state.sent || state.sendOutcomeUnknown;
+        elements.senderSelect.disabled = state.sending || state.sent || state.sendOutcomeUnknown;
+        elements.replyToSelect.disabled = state.sending || state.sent || state.sendOutcomeUnknown;
+        elements.sendButton.disabled = state.sending || state.sent || state.sendOutcomeUnknown || state.recipientCount < 1;
+        elements.sendButton.textContent = state.sending ? "Sending…" : (state.sent ? "Email Sent" : (state.sendOutcomeUnknown ? "Status Unconfirmed" : "Send Email"));
     }
 
     function renderRecipientList() {
