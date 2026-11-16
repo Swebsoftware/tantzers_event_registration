@@ -277,6 +277,7 @@ select:disabled {
 .record-table {
     width: 100%;
     table-layout: fixed;
+    min-width: 1070px;
     border-collapse: collapse;
     background: #ffffff;
     font-size: 13px;
@@ -313,8 +314,31 @@ select:disabled {
 }
 
 .name-column {
-    width: 19%;
+    width: 190px;
+    max-width: 190px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+}
+
+.email-column {
+    width: 220px;
     overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.phone-column {
+    width: 145px;
+    white-space: nowrap;
+}
+
+.record-table td {
+    overflow: hidden;
+}
+
+.record-table th {
+    white-space: nowrap;
 }
 
 .dob-column {
@@ -455,5 +479,9 @@ select:disabled {
 
     .tab-button {
         min-width: 130px;
+    }
+
+    .record-table {
+        min-width: 1070px;
     }
 }
