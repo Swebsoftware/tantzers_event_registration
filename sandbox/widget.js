@@ -751,6 +751,9 @@
             cell.className = className;
         }
         cell.textContent = value === null || value === undefined ? "" : String(value);
+        if (className === "name-column") {
+            cell.title = cell.textContent;
+        }
         row.appendChild(cell);
         return cell;
     }
@@ -870,8 +873,8 @@
 
         if (state.activeTab === "families") {
             createCell(row, record.Name, "name-column");
-            createCell(row, record.Email || "");
-            createCell(row, record.Primary_Phone || "");
+            createCell(row, record.Email || "", "email-column");
+            createCell(row, record.Primary_Phone || "", "phone-column");
             createCell(row, record.moduleStatus || "—", "module-status-column");
         } else if (state.activeTab === "patients") {
             createCell(row, record.Name, "name-column");
