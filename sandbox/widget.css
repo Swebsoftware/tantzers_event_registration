@@ -485,3 +485,36 @@ select:disabled {
         min-width: 1070px;
     }
 }
+
+
+/* Sandbox v3: maintain non-overlapping, predictable table cells. */
+.table-container {
+    overflow-x: auto;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+.record-table {
+    width: max-content;
+    max-width: none;
+    table-layout: fixed;
+}
+.record-table th,
+.record-table td {
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.record-table .name-column {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+    word-break: normal;
+}
+.record-table .email-column {
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+.record-table .phone-column {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
