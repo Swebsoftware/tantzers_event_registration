@@ -26,19 +26,21 @@ body {
 }
 
 button,
-input {
+input,
+select {
     font: inherit;
 }
 
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible {
     outline: 3px solid rgba(47, 111, 237, 0.2);
     outline-offset: 1px;
 }
 
 .app-shell {
     width: 100%;
-    max-width: 1120px;
+    max-width: 1180px;
     height: 100%;
     min-height: 0;
     margin: 0 auto;
@@ -62,13 +64,6 @@ input:focus-visible {
     justify-content: space-between;
     gap: 20px;
     margin-bottom: 14px;
-}
-
-.title-block h1 {
-    margin: 0 0 4px;
-    color: #111827;
-    font-size: 23px;
-    line-height: 1.25;
 }
 
 .title-block p {
@@ -124,10 +119,9 @@ input:focus-visible {
     margin-bottom: 11px;
 }
 
-#search-input {
-    min-width: 0;
+#search-input,
+#status-filter {
     height: 40px;
-    flex: 1 1 auto;
     padding: 8px 12px;
     border: 1px solid #bfc5ce;
     border-radius: 6px;
@@ -136,7 +130,18 @@ input:focus-visible {
     font-size: 14px;
 }
 
-#search-input:focus {
+#search-input {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+#status-filter {
+    min-width: 190px;
+    flex: 0 0 auto;
+}
+
+#search-input:focus,
+#status-filter:focus {
     border-color: #2f6fed;
 }
 
@@ -187,7 +192,9 @@ input:focus-visible {
     font-size: 12px;
 }
 
-.button:disabled {
+.button:disabled,
+input:disabled,
+select:disabled {
     cursor: not-allowed;
     opacity: 0.52;
 }
@@ -256,7 +263,9 @@ input:focus-visible {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .table-container {
@@ -268,6 +277,7 @@ input:focus-visible {
 .record-table {
     width: 100%;
     table-layout: fixed;
+    min-width: 1070px;
     border-collapse: collapse;
     background: #ffffff;
     font-size: 13px;
@@ -304,8 +314,31 @@ input:focus-visible {
 }
 
 .name-column {
-    width: 21%;
+    width: 190px;
+    max-width: 190px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+}
+
+.email-column {
+    width: 220px;
     overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.phone-column {
+    width: 145px;
+    white-space: nowrap;
+}
+
+.record-table td {
+    overflow: hidden;
+}
+
+.record-table th {
+    white-space: nowrap;
 }
 
 .dob-column {
@@ -317,13 +350,17 @@ input:focus-visible {
 }
 
 .family-column {
-    width: 20%;
+    width: 17%;
     white-space: normal;
     overflow-wrap: anywhere;
 }
 
-.status-column {
-    width: 124px;
+.module-status-column {
+    width: 132px;
+}
+
+.registration-column {
+    width: 132px;
 }
 
 .action-column {
@@ -430,8 +467,10 @@ input:focus-visible {
         flex-wrap: wrap;
     }
 
-    #search-input {
-        flex-basis: 100%;
+    #search-input,
+    #status-filter {
+        flex: 1 1 100%;
+        width: 100%;
     }
 
     .tabs {
@@ -441,4 +480,41 @@ input:focus-visible {
     .tab-button {
         min-width: 130px;
     }
+
+    .record-table {
+        min-width: 1070px;
+    }
+}
+
+
+/* Sandbox v3: maintain non-overlapping, predictable table cells. */
+.table-container {
+    overflow-x: auto;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+.record-table {
+    width: max-content;
+    max-width: none;
+    table-layout: fixed;
+}
+.record-table th,
+.record-table td {
+    box-sizing: border-box;
+    overflow: hidden;
+}
+.record-table .name-column {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    overflow-wrap: normal;
+    word-break: normal;
+}
+.record-table .email-column {
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+.record-table .phone-column {
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
