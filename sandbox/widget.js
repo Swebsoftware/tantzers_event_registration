@@ -900,6 +900,32 @@
         elements.tableHead.textContent = "";
         elements.tableBody.textContent = "";
 
+        // Explicit pixel column widths prevent the browser from squeezing cell
+        // contents together inside Zoho's narrow popup iframe.
+        var widths = {
+            families: [44, 190, 240, 145, 170, 145, 90],
+            patients: [44, 190, 100, 55, 180, 170, 145, 90],
+            volunteers: [44, 220, 180, 145, 90]
+        }[state.activeTab];
+        var table = elements.tableBody.closest("table");
+        var oldColgroup = table.querySelector("colgroup");
+        if (oldColgroup) {
+            oldColgroup.remove();
+        }
+        var colgroup = document.createElement("colgroup");
+        widths.forEach(function (width) {
+            var col = document.createElement("col");
+            col.style.width = width + "px";
+            colgroup.appendChild(col);
+        });
+        table.insertBefore(colgroup, table.firstChild);
+        var totalWidth = widths.reduce(function (total, width) {
+            return total + width;
+        }, 0);
+        table.style.width = totalWidth + "px";
+        table.style.minWidth = totalWidth + "px";
+        table.style.tableLayout = "fixed";
+
         if (state.activeTab === "families") {
             appendHeader([
                 "Add",
