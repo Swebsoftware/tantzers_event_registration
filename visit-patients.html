@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add patients to visit</title>
+<script src="https://live.zwidgets.com/js-sdk/1.2/ZohoEmbededAppSDK.min.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:auto;padding:20px;max-width:1000px;font:15px system-ui,sans-serif;color:#203049}h1{font-size:21px;margin:0 0 14px}input[type=search]{padding:10px;width:100%;border:1px solid #aeb9c7;border-radius:5px}.scroll{overflow:auto;max-height:58vh}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;border-bottom:1px solid #dee3e9;white-space:nowrap}th{background:#f5f7fa;position:sticky;top:0}footer{display:flex;align-items:center;gap:12px;margin-top:14px}button{border:0;border-radius:5px;background:#265acf;color:white;padding:10px 16px}button:disabled{opacity:.5}p{min-height:1.4em}
+</style></head><body><h1>Add patients to visit</h1>
+<input id="search" type="search" aria-label="Search by patient or family" placeholder="Search by patient or family">
+<p id="status" role="status">Open this widget from an Eliyahu Visit.</p>
+<div class="scroll"><table><thead><tr><th>Select</th><th>Patient</th><th>Family</th><th>Visit</th></tr></thead><tbody></tbody></table></div>
+<footer><button id="save" disabled>Add selected</button><button id="more" hidden>Show more</button></footer>
+<script>
+'use strict';
+const api = window.ZOHO?.CRM.API;
+const el = id => document.getElementById(id);
+const selected = new Set();
+let patients = [], linked = new Set(), visitId, junction, visitField, familyField, busy = true, limit = 50;
+const note = message => { el('status').textContent = message; };
+function render() {
+  const query = el('search').value.trim().toLowerCase();
+  const matches = patients.filter(p => [p.Name,p.Family?.name].some(v => v?.toLowerCase().includes(query)));
+  const body = document.querySelector('tbody');
+  body.replaceChildren();
+  for (const patient of matches.slice(0,limit)) {
+    const row = body.insertRow(), check = document.createElement('input');
+    check.type = 'checkbox';
+    check.setAttribute('aria-label','Select '+patient.Name);
+    check.disabled = busy || linked.has(patient.id);
+    check.checked = selected.has(patient.id);
+    check.onchange = () => {
+      if (check.checked) selected.add(patient.id); else selected.delete(patient.id);
+      controls();
+    };
+    row.insertCell().append(check);
+    for (const value of [patient.Name,patient.Family?.name,linked.has(patient.id)?'Already added':'']) row.insertCell().textContent = value || '';
+  }
+  el('more').hidden = matches.length <= limit;
+  controls();
+}
+function controls() {
+  el('save').disabled = busy || !selected.size;
+  el('save').textContent = selected.size ? 'Add selected ('+selected.size+')' : 'Add selected';
+}
+function records(response) {
+  if (Array.isArray(response?.data)) return response.data;
+  if (response?.status===204 || response?.code==='NO_CONTENT' || response?.info?.count===0) return [];
+  throw Error(response?.message || 'Zoho could not load the records.');
+}
+async function pages(fetchPage) {
+  const rows = [];
+  for (let page=1;;page++) {
+    let response;
+    try { response = await fetchPage(page); }
+    catch(error) { if(error?.status===204 || error?.code==='NO_CONTENT') break; throw error; }
+    const batch = records(response);
+    rows.push(...batch);
+    if (!batch.length || response.info?.more_records===false || (batch.length<200 && !response.info?.more_records)) break;
+  }
+  return rows;
+}
+async function refreshLinks() {
+  const rows = await pages(page => api.searchRecord({Entity:junction,Type:'criteria',Query:'('+visitField+':equals:'+visitId+')'},String(page),'200'));
+  linked = new Set(rows.filter(row=>String(row[visitField]?.id)===visitId).map(row=>row.Patient?.id));
+  for (const id of linked) selected.delete(id);
+}
+async function openVisit(data) {
+  try {
+    const id = Array.isArray(data.EntityId)?data.EntityId[0]:data.EntityId;
+    if (!id) throw Error('Open this widget from a saved Eliyahu Visit.');
+    visitId = String(id);
+    note('Loading patients…');
+    const modules = (await ZOHO.CRM.META.getModules()).modules;
+    const target = modules.find(m=>m.plural_label==='Visit Patients');
+    if (!target) throw Error('Visit Patients module is unavailable.');
+    junction = target.api_name;
+    const fields = (await ZOHO.CRM.META.getFields({Entity:junction})).fields;
+    const field = fields.find(f=>f.lookup?.module?.api_name===data.Entity || ['Visit','Eliyahu Visit'].includes(f.field_label) && f.data_type==='lookup');
+    if (!field) throw Error('Visit lookup is unavailable.');
+    visitField = field.api_name;
+    familyField = fields.find(f=>f.field_label==='Family' && f.data_type==='lookup')?.api_name;
+    const all = await pages(page=>api.getAllRecords({Entity:'Patientt',page:String(page),per_page:'200'}));
+    patients = all.filter(p=>p.Name && !/^sibling$/i.test(p.Type || '')).sort((a,b)=>a.Name.localeCompare(b.Name));
+    await refreshLinks();
+    busy = false; render(); note(patients.length+' patients');
+  } catch(e) { note(e.message || 'Could not load patients. Reopen the widget to retry.'); }
+}
+async function save() {
+  if (busy) return;
+  busy=true; render(); let count=0;
+  try {
+    await refreshLinks();
+    for (const patient of patients.filter(p=>selected.has(p.id))) {
+      const data = {Name:patient.Name,Patient:{id:patient.id},[visitField]:{id:visitId}};
+      if (patient.Family?.id) {
+        const family = records(await api.getRecord({Entity:'Families',RecordID:patient.Family.id}))[0];
+        if (!family) throw Error('The linked family could not be read.');
+        if (familyField) data[familyField]={id:family.id};
+        if (family.Email) data.Email=family.Email;
+        if (family.Primary_Phone) data.Phone=family.Primary_Phone;
+      }
+      const result = (await api.insertRecord({Entity:junction,APIData:data,Trigger:['workflow']})).data?.[0];
+      if(result?.code!=='SUCCESS') throw Error(result?.message || 'Zoho could not confirm creation.');
+      linked.add(patient.id); selected.delete(patient.id); count++;
+    }
+    note(count+' added to this visit.');
+  } catch(e) { note(count+' added. '+(e.message || 'Zoho could not complete the remaining records.')); }
+  finally { busy=false; render(); }
+}
+el('save').onclick=save;
+el('search').oninput=()=>{limit=50;render();};
+el('more').onclick=()=>{limit+=50;render();};
+if(window.ZOHO) { ZOHO.embeddedApp.on('PageLoad',openVisit); ZOHO.embeddedApp.init(); }
+</script></body></html>
