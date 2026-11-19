@@ -59,7 +59,7 @@ async function pages(fetchPage) {
   return rows;
 }
 async function refreshLinks() {
-  const rows = await pages(page => api.searchRecord({Entity:junction,Type:'criteria',Query:'('+visitField+':equals:'+visitId+')'},String(page),'200'));
+  const rows = await pages(page => api.getAllRecords({Entity:junction,page:String(page),per_page:'200'}));
   linked = new Set(rows.filter(row=>String(row[visitField]?.id)===visitId).map(row=>row.Patient?.id));
   for (const id of linked) selected.delete(id);
 }
