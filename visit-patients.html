@@ -3,10 +3,39 @@
 <title>Add patients to visit</title>
 <script src="https://live.zwidgets.com/js-sdk/1.2/ZohoEmbededAppSDK.min.js"></script>
 <style>
-*{box-sizing:border-box}body{margin:auto;padding:20px;max-width:1000px;font:15px system-ui,sans-serif;color:#203049}h1{font-size:21px;margin:0 0 14px}input[type=search]{padding:10px;width:100%;border:1px solid #aeb9c7;border-radius:5px}.scroll{overflow:auto;max-height:58vh}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;border-bottom:1px solid #dee3e9;white-space:nowrap}th{background:#f5f7fa;position:sticky;top:0}footer{display:flex;align-items:center;gap:12px;margin-top:14px}button{border:0;border-radius:5px;background:#265acf;color:white;padding:10px 16px}button:disabled{opacity:.5}p{min-height:1.4em}
+*{box-sizing:border-box}body{margin:auto;padding:20px;max-width:1000px;font:15px system-ui,sans-serif;color:#203049}h1{font-size:21px;margin:0 0 14px}.scroll{overflow:auto;max-height:58vh}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;border-bottom:1px solid #dee3e9;white-space:nowrap}th{background:#f5f7fa;position:sticky;top:0}footer{display:flex;align-items:center;gap:12px;margin-top:14px}button{border:0;border-radius:5px;background:#265acf;color:white;padding:10px 16px}button:disabled{opacity:.5}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.filters input, .filters select {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #aeb9c7;
+  border-radius: 5px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+.filters input { flex: 1 1 250px; }
+.filters select { flex: 0 1 210px; }
+.filters select:disabled { opacity: .6; }
+.messages { min-height: 1.4em; margin: 14px 0; }
+.messages p { margin: 0; }
+.messages p:not(:empty) + p:not(:empty) { margin-top: 4px; }
+.messages p:empty { display: none; }
 </style></head><body><h1>Add patients to visit</h1>
-<input id="search" type="search" aria-label="Search by patient or family" placeholder="Search by patient or family">
-<p id="status" role="status">Open this widget from an Eliyahu Visit.</p>
+<div class="filters">
+  <input id="search" type="search" aria-label="Search by patient or family" placeholder="Search by patient or family">
+  <select id="patient-status" aria-label="Patient status" disabled>
+    <option value="">All patient statuses</option>
+  </select>
+</div>
+<div class="messages">
+  <p id="result-count" aria-live="polite"></p>
+  <p id="status" role="status">Open this widget from an Eliyahu Visit.</p>
+</div>
 <div class="scroll"><table><thead><tr><th>Select</th><th>Patient</th><th>Family</th><th>Visit</th></tr></thead><tbody></tbody></table></div>
 <footer><button id="save" disabled>Add selected</button><button id="more" hidden>Show more</button></footer>
 <script>
@@ -14,11 +43,28 @@
 const api = window.ZOHO?.CRM.API;
 const el = id => document.getElementById(id);
 const selected = new Set();
+const patientStatuses = new Map([
+  ['New', ['new']],
+  ['Review', ['review']],
+  ['Accepted', ['active', 'accepted']],
+  ['Provisional Acceptance', ['provisional acceptance']],
+  ['Pending', ['pending']],
+  ['On Hold', ['on hold']],
+  ['Rejected', ['not approved', 'rejected']],
+  ['Inactive', ['inactive']],
+  ['Approved', ['approved']]
+]);
 let patients = [], linked = new Set(), visitId, junction, visitField, familyField, busy = true, limit = 50;
+let loaded = false;
 const note = message => { el('status').textContent = message; };
 function render() {
   const query = el('search').value.trim().toLowerCase();
-  const matches = patients.filter(p => [p.Name,p.Family?.name].some(v => v?.toLowerCase().includes(query)));
+  const statuses = patientStatuses.get(el('patient-status').value);
+  const matches = patients.filter(patient => {
+    const status = String(patient.Status ?? '').trim().toLowerCase();
+    return (!statuses || statuses.includes(status)) &&
+      [patient.Name, patient.Family?.name].some(name => name?.toLowerCase().includes(query));
+  });
   const body = document.querySelector('tbody');
   body.replaceChildren();
   for (const patient of matches.slice(0,limit)) {
@@ -34,10 +80,16 @@ function render() {
     row.insertCell().append(check);
     for (const value of [patient.Name,patient.Family?.name,linked.has(patient.id)?'Already added':'']) row.insertCell().textContent = value || '';
   }
+  if (loaded) {
+    el('result-count').textContent = matches.length === 0
+      ? 'No patients match your filters.'
+      : `${matches.length} ${matches.length === 1 ? 'patient' : 'patients'}`;
+  }
   el('more').hidden = matches.length <= limit;
   controls();
 }
 function controls() {
+  el('patient-status').disabled = busy;
   el('save').disabled = busy || !selected.size;
   el('save').textContent = selected.size ? 'Add selected ('+selected.size+')' : 'Add selected';
 }
@@ -81,7 +133,10 @@ async function openVisit(data) {
     const all = await pages(page=>api.getAllRecords({Entity:'Patientt',page:String(page),per_page:'200'}));
     patients = all.filter(p=>p.Name && !/^sibling$/i.test(p.Type || '')).sort((a,b)=>a.Name.localeCompare(b.Name));
     await refreshLinks();
-    busy = false; render(); note(patients.length+' patients');
+    loaded = true;
+    busy = false;
+    note('');
+    render();
   } catch(e) { note(e.message || 'Could not load patients. Reopen the widget to retry.'); }
 }
 async function save() {
@@ -106,8 +161,16 @@ async function save() {
   } catch(e) { note(count+' added. '+(e.message || 'Zoho could not complete the remaining records.')); }
   finally { busy=false; render(); }
 }
+function applyFilters() {
+  limit = 50;
+  render();
+}
+for (const label of patientStatuses.keys()) {
+  el('patient-status').add(new Option(label, label));
+}
 el('save').onclick=save;
-el('search').oninput=()=>{limit=50;render();};
+el('search').oninput=applyFilters;
+el('patient-status').onchange=applyFilters;
 el('more').onclick=()=>{limit+=50;render();};
 if(window.ZOHO) { ZOHO.embeddedApp.on('PageLoad',openVisit); ZOHO.embeddedApp.init(); }
 </script></body></html>
