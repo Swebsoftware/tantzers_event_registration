@@ -25,7 +25,14 @@
 .messages p { margin: 0; }
 .messages p:not(:empty) + p:not(:empty) { margin-top: 4px; }
 .messages p:empty { display: none; }
+.tabs { display:flex; gap:6px; margin-bottom:12px; }
+.tabs button { background:#eef2f7; color:#203049; }
+.tabs button[aria-pressed="true"] { background:#265acf; color:white; }
 </style></head><body><h1>Add patients to visit</h1>
+<div class="tabs" role="group" aria-label="Choose records">
+  <button id="patients-tab" aria-pressed="true">Patients</button>
+  <button id="requests-tab" aria-pressed="false" disabled>Visit Requests</button>
+</div>
 <div class="filters">
   <input id="search" type="search" aria-label="Search by patient or family" placeholder="Search by patient or family">
   <select id="patient-status" aria-label="Patient status" disabled>
@@ -36,7 +43,7 @@
   <p id="result-count" aria-live="polite"></p>
   <p id="status" role="status">Open this widget from an Eliyahu Visit.</p>
 </div>
-<div class="scroll"><table><thead><tr><th>Select</th><th>Patient</th><th>Family</th><th>Visit</th></tr></thead><tbody></tbody></table></div>
+<div class="scroll"><table><thead><tr><th>Select</th><th>Patient</th><th id="detail-column">Family</th><th id="state-column">Visit</th></tr></thead><tbody></tbody></table></div>
 <footer><button id="save" disabled>Add selected</button><button id="more" hidden>Show more</button></footer>
 <script>
 'use strict';
@@ -57,7 +64,11 @@ const patientStatuses = new Map([
 let patients = [], linked = new Set(), visitId, junction, visitField, familyField, busy = true, limit = 50;
 let loaded = false;
 const note = message => { el('status').textContent = message; };
+let requestsMode = false, requests = [], fields;
+const chosenRequests = new Set();
+const requestModule = 'Visit_Requests';
 function render() {
+  if (requestsMode) return renderRequests();
   const query = el('search').value.trim().toLowerCase();
   const statuses = patientStatuses.get(el('patient-status').value);
   const matches = patients.filter(patient => {
@@ -89,9 +100,12 @@ function render() {
   controls();
 }
 function controls() {
+  const selection = requestsMode ? chosenRequests : selected;
+  el('patients-tab').disabled = busy || !requestsMode;
+  el('requests-tab').disabled = busy || requestsMode;
   el('patient-status').disabled = busy;
-  el('save').disabled = busy || !selected.size;
-  el('save').textContent = selected.size ? 'Add selected ('+selected.size+')' : 'Add selected';
+  el('save').disabled = busy || !selection.size;
+  el('save').textContent = selection.size ? 'Add selected ('+selection.size+')' : 'Add selected';
 }
 function records(response) {
   if (Array.isArray(response?.data)) return response.data;
@@ -139,27 +153,146 @@ async function openVisit(data) {
     render();
   } catch(e) { note(e.message || 'Could not load patients. Reopen the widget to retry.'); }
 }
+async function addPatient(patient) {
+  const data = {Name:patient.Name,Patient:{id:patient.id},[visitField]:{id:visitId}};
+  if (patient.Family?.id) {
+    const family = records(await api.getRecord({Entity:'Families',RecordID:patient.Family.id}))[0];
+    if (!family) throw Error('The linked family could not be read.');
+    if (familyField) data[familyField]={id:family.id};
+    if (family.Email) data.Email=family.Email;
+    if (family.Primary_Phone) data.Phone=family.Primary_Phone;
+  }
+  const result = (await api.insertRecord({Entity:junction,APIData:data,Trigger:['workflow']})).data?.[0];
+  if(result?.code!=='SUCCESS') throw Error(result?.message || 'Zoho could not confirm creation.');
+  linked.add(patient.id);
+}
 async function save() {
   if (busy) return;
   busy=true; render(); let count=0;
   try {
     await refreshLinks();
     for (const patient of patients.filter(p=>selected.has(p.id))) {
-      const data = {Name:patient.Name,Patient:{id:patient.id},[visitField]:{id:visitId}};
-      if (patient.Family?.id) {
-        const family = records(await api.getRecord({Entity:'Families',RecordID:patient.Family.id}))[0];
-        if (!family) throw Error('The linked family could not be read.');
-        if (familyField) data[familyField]={id:family.id};
-        if (family.Email) data.Email=family.Email;
-        if (family.Primary_Phone) data.Phone=family.Primary_Phone;
-      }
-      const result = (await api.insertRecord({Entity:junction,APIData:data,Trigger:['workflow']})).data?.[0];
-      if(result?.code!=='SUCCESS') throw Error(result?.message || 'Zoho could not confirm creation.');
-      linked.add(patient.id); selected.delete(patient.id); count++;
+      await addPatient(patient);
+      selected.delete(patient.id); count++;
     }
     note(count+' added to this visit.');
   } catch(e) { note(count+' added. '+(e.message || 'Zoho could not complete the remaining records.')); }
   finally { busy=false; render(); }
+}
+function requestBlock(request) {
+  if (!request[fields.patient]?.id) return 'Patient missing';
+  const visit = request[fields.visit]?.id;
+  return visit && String(visit) !== visitId ? 'Linked to another visit' : '';
+}
+function renderRequests() {
+  const query = el('search').value.trim().toLowerCase();
+  const matches = requests.filter(r => [r.Name, r[fields.patient]?.name].some(v => String(v || '').toLowerCase().includes(query)));
+  const body = document.querySelector('tbody');
+  body.replaceChildren();
+  for (const request of matches.slice(0,limit)) {
+    const patient = request[fields.patient];
+    const row = body.insertRow();
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.setAttribute('aria-label', 'Select ' + request.Name);
+    check.checked = chosenRequests.has(request.id);
+    check.disabled = busy || Boolean(requestBlock(request));
+    check.onchange = () => {
+      if (check.checked) chosenRequests.add(request.id);
+      else chosenRequests.delete(request.id);
+      controls();
+    };
+    row.insertCell().append(check);
+    for (const value of [patient?.name, request.Name, requestBlock(request) || 'Requested']) row.insertCell().textContent = value || '—';
+  }
+  el('result-count').textContent = matches.length ? matches.length + ' pending request' + (matches.length === 1 ? '' : 's') : 'No matching visit requests.';
+  el('more').hidden = matches.length <= limit;
+  controls();
+}
+async function switchTab(toRequests) {
+  if (busy) return;
+  requestsMode = toRequests;
+  busy = true;
+  limit = 50;
+  el('patient-status').hidden = toRequests;
+  el('patients-tab').setAttribute('aria-pressed', String(!toRequests));
+  el('requests-tab').setAttribute('aria-pressed', String(toRequests));
+  el('detail-column').textContent = toRequests ? 'Visit Request' : 'Family';
+  el('state-column').textContent = toRequests ? 'Request Status' : 'Visit';
+  const search = el('search');
+  search.value = '';
+  search.placeholder = toRequests ? 'Search by patient or request' : 'Search by patient or family';
+  search.setAttribute('aria-label', search.placeholder);
+  note('');
+  if (toRequests) {
+    requests = [];
+    note('Loading visit requests…');
+    try {
+      render();
+      if (!fields) {
+        const metadata = (await ZOHO.CRM.META.getFields({Entity:requestModule})).fields;
+        const field = label => {
+          const match = metadata.find(f => f.field_label === label || f.api_name === label.replaceAll(' ', '_'));
+          if (!match) throw Error('Missing Visit Request field: ' + label);
+          return match.api_name;
+        };
+        fields = {patient:field('Patient'), visit:field('Eliyahu Visit'), status:field('Request Status')};
+      }
+      const rows = await pages(page => api.coql({select_query:
+        'select id, Name, ' + fields.patient + ', ' + fields.patient + '.Name, ' + fields.visit + ', ' + fields.status +
+        ' from ' + requestModule + " where " + fields.status + " = 'Requested' order by id asc limit " + ((page-1)*200) + ', 200'}));
+      requests = rows.filter(r => r[fields.status] === 'Requested').map(r => ({
+        ...r, [fields.patient]: r[fields.patient] && {...r[fields.patient], name:r[fields.patient + '.Name'] || r[fields.patient].name}
+      }));
+      const eligible = new Set(requests.filter(r => !requestBlock(r)).map(r => r.id));
+      for (const id of chosenRequests) if (!eligible.has(id)) chosenRequests.delete(id);
+      note('');
+    } catch(e) {
+      chosenRequests.clear();
+      note(e.message || 'Could not load visit requests. Reopen this tab to retry.');
+    }
+  }
+  busy = false;
+  render();
+}
+async function scheduleRequests() {
+  if (busy || !chosenRequests.size) return;
+  busy = true;
+  render();
+  let count = 0;
+  const errors = [];
+  try {
+    await refreshLinks();
+    for (const id of [...chosenRequests]) {
+      const shown = requests.find(r => r.id === id);
+      try {
+        const request = records(await api.getRecord({Entity:requestModule,RecordID:id}))[0];
+        if (!request || request[fields.status] !== 'Requested' || requestBlock(request) ||
+            request[fields.patient].id !== shown[fields.patient].id) {
+          chosenRequests.delete(id);
+          requests = requests.filter(r => r.id !== id);
+          throw Error('Request changed. Reopen the tab to review it.');
+        }
+        const patientId = request[fields.patient].id;
+        if (!linked.has(patientId)) {
+          const patient = records(await api.getRecord({Entity:'Patientt',RecordID:patientId}))[0];
+          if (!patient?.Name) throw Error('Patient details unavailable.');
+          await addPatient(patient);
+        }
+        selected.delete(patientId);
+        const result = (await api.updateRecord({Entity:requestModule,
+          APIData:{id, [fields.status]:'Scheduled', [fields.visit]:{id:visitId}}, Trigger:['workflow']})).data?.[0];
+        if (result?.code !== 'SUCCESS') throw Error(result?.message || 'Request update was not confirmed. Retry to finish scheduling.');
+        chosenRequests.delete(id);
+        requests = requests.filter(r => r.id !== id);
+        count++;
+      } catch(e) {
+        errors.push((shown?.Name || id) + ' — ' + (e.message || 'Could not schedule request.'));
+      }
+    }
+  } catch(e) { errors.push(e.message || 'Could not check existing visit patients.'); }
+  finally { busy = false; render(); }
+  note([count + ' scheduled.', ...errors].join(' '));
 }
 function applyFilters() {
   limit = 50;
@@ -168,9 +301,12 @@ function applyFilters() {
 for (const label of patientStatuses.keys()) {
   el('patient-status').add(new Option(label, label));
 }
-el('save').onclick=save;
+el('patients-tab').onclick=()=>switchTab(false);
+el('requests-tab').onclick=()=>switchTab(true);
+el('save').onclick=()=>requestsMode ? scheduleRequests() : save();
 el('search').oninput=applyFilters;
 el('patient-status').onchange=applyFilters;
 el('more').onclick=()=>{limit+=50;render();};
 if(window.ZOHO) { ZOHO.embeddedApp.on('PageLoad',openVisit); ZOHO.embeddedApp.init(); }
 </script></body></html>
+
